@@ -14,6 +14,9 @@
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 "Noto Sans KR",-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif}
 button:focus-visible,.opt:focus-within,input:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 .wrap{max-width:780px;margin:0 auto;padding:20px 16px 80px}
+.brand{display:flex;align-items:center;gap:9px;margin-bottom:14px}
+.brand .mark{display:inline-grid;place-items:center;width:28px;height:28px;border-radius:8px;background:var(--acc);color:#fff;font-weight:800;font-size:12px;letter-spacing:.02em}
+.brand .brandname{font-weight:800;font-size:14px;letter-spacing:.08em;color:var(--acc)}
 header{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:18px}
 h1{font-size:22px;margin:0;letter-spacing:-.3px;text-wrap:balance}
 h1 small{display:block;font-size:13px;color:var(--sub);font-weight:500}
@@ -108,6 +111,7 @@ select{font:inherit;padding:10px 12px;border:1px solid var(--line);border-radius
 </head>
 <body>
 <div class="wrap">
+<div class="brand" aria-label="이승수영어전문학원"><span class="mark">SS</span><span class="brandname">이승수영어전문학원</span></div>
 <header><h1 id="appTitle"><small id="appSub"></small></h1><span class="muted" id="who"></span></header>
 
 <section id="home">
