@@ -158,18 +158,25 @@ select{font:inherit;padding:10px 12px;border:1px solid var(--line);border-radius
 
 <section id="teacher" hidden>
   <div class="row" style="justify-content:space-between;margin-bottom:12px"><h2 class="h2">선생님 화면 · 점수 명단</h2><button class="ghost" id="tBack">학생 화면으로</button></div>
+  <div class="card" id="sheetCard">
+    <div class="row" style="justify-content:space-between"><b>구글 시트 요약 — 자동 전송된 기록</b><span class="row"><button class="ghost" id="tReload">새로고침</button><button class="ghost" id="tSheet" hidden>시트 열기</button></span></div>
+    <p class="muted" id="tMsg" style="margin:4px 0 8px">불러오는 중…</p>
+    <div class="tablewrap"><table id="tStudents"></table></div>
+    <p style="margin:12px 0 4px"><b>최근 채점 (최근 100건)</b></p>
+    <div class="tablewrap"><table id="tRecent"></table></div>
+  </div>
   <div class="card">
-    <label for="paste"><b>점수 메시지 붙여넣기</b></label>
-    <p class="muted" style="margin:4px 0 0">학생이 보낸 점수 메시지를 그대로 붙여 넣으세요. 카톡 대화 여러 개를 한꺼번에 넣어도 메시지만 골라 읽습니다. 자동 전송이 켜진 앱은 구글 시트 「기록」 탭에도 같은 내용이 쌓입니다.</p>
+    <label for="paste"><b>수동 추가 — 점수 메시지 붙여넣기</b></label>
+    <p class="muted" style="margin:4px 0 0">자동 전송이 안 될 때만 씁니다. 학생이 카톡으로 보낸 점수 메시지를 붙여 넣으면 이 기기에만 저장됩니다.</p>
     <textarea id="paste" rows="6"></textarea>
     <div class="row"><button id="addCerts">명단에 추가</button><span class="muted" id="addMsg"></span></div>
   </div>
   <div class="card">
-    <div class="row" style="justify-content:space-between"><b>학생별 요약</b><input type="text" id="filter" placeholder="이름 검색" aria-label="이름 검색"></div>
+    <div class="row" style="justify-content:space-between"><b>수동 추가 요약</b><input type="text" id="filter" placeholder="이름 검색" aria-label="이름 검색"></div>
     <div class="tablewrap"><table id="summary"></table></div>
   </div>
   <div class="card">
-    <div class="row" style="justify-content:space-between"><b>전체 점수 기록</b><button class="ghost" id="copyTable">엑셀용으로 복사</button></div>
+    <div class="row" style="justify-content:space-between"><b>수동 추가 기록</b><button class="ghost" id="copyTable">엑셀용으로 복사</button></div>
     <div class="tablewrap"><table id="roster"></table></div>
     <p class="muted" id="rosterMsg" style="margin:10px 0 0">이 명단은 지금 쓰는 기기의 브라우저에만 저장됩니다. 가끔 「엑셀용으로 복사」로 백업해 두세요.</p>
   </div>
@@ -617,7 +624,36 @@ $('#go').onclick = start;
 $('#clearSel').onclick = () => { sel = new Set(); paintSel(); };
 $('#submit').onclick = grade;
 $('#logMore').onclick = () => { logLimit += 30; renderLog(); };
-$('#teacherBtn').onclick = renderTeacher;
+$('#teacherBtn').onclick = () => { renderTeacher(); loadTeacher(); };
+// ---- 선생님 화면 잠금(2026-09-23 사용자 확정: 학생에게는 보이지 않는다) ----
+// 앱 주소 뒤에 ?teacher=코드 를 붙여 한 번 열면 이 기기에 저장되고 버튼이 나타난다. 제목을 빠르게 7번 누르면 코드 입력창.
+{ const q = new URLSearchParams(location.search).get('teacher'); if (q) { store.set('tcode', q.trim()); history.replaceState(null, '', location.pathname); } }
+const tcode = () => store.get('tcode', '');
+$('#teacherBtn').hidden = !tcode();
+{ let taps = 0, t0 = 0; $('#appTitle').addEventListener('click', () => { const now = Date.now(); taps = now - t0 < 1500 ? taps + 1 : 1; t0 = now;
+  if (taps >= 7) { taps = 0; const c = prompt('선생님 코드를 입력하세요'); if (c && c.trim()) { store.set('tcode', c.trim()); $('#teacherBtn').hidden = false; } } }); }
+// 구글 시트 요약: Apps Script doGet(?teacher=코드&app=제목) — 코드는 서버만 안다(앱 코드에 없음)
+async function loadTeacher() {
+  const msg = $('#tMsg'), url = D.reportUrl;
+  if (!url) { msg.textContent = '이 앱은 자동 전송이 꺼져 있어 시트 요약이 없습니다. 아래 수동 추가를 쓰세요.'; return; }
+  msg.textContent = '불러오는 중…';
+  try {
+    const r = await fetch(`${url}?teacher=${encodeURIComponent(tcode())}&app=${encodeURIComponent(D.title)}&_=${Date.now()}`);
+    const j = await r.json();
+    if (!j.ok) {
+      if (j.error === 'code') { store.set('tcode', ''); msg.textContent = '선생님 코드가 맞지 않습니다. 주소 뒤에 ?teacher=코드 를 붙여 다시 여세요.'; $('#teacherBtn').hidden = true; return; }
+      msg.textContent = '불러오지 못했습니다: ' + (j.error || ''); return;
+    }
+    msg.textContent = `${j.at} 기준 · 학생 ${j.students.length}명 · 채점 ${j.recent.length}건`;
+    $('#tSheet').hidden = !j.sheet; $('#tSheet').onclick = () => window.open(j.sheet, '_blank');
+    $('#tStudents').innerHTML = j.students.length ? '<tr><th>이름</th><th>시험 횟수</th><th>평균</th><th>최고</th><th>기기 수</th><th>많이 틀린 유형</th><th>마지막 시험</th></tr>' + j.students.map(s =>
+      `<tr><td>${esc(s.name)}</td><td>${s.n}회</td><td>${s.avg}점</td><td>${s.best}점</td><td${s.devices > 2 ? ' class="ngc"' : ''}>${s.devices}</td><td class="wrap">${esc(s.wrong || '-')}</td><td>${s.last}</td></tr>`).join('') : '<tr><td class="muted">아직 채점 기록이 없습니다.</td></tr>';
+    $('#tRecent').innerHTML = j.recent.length ? '<tr><th>시각</th><th>이름</th><th>범위</th><th>점수</th><th>정답</th><th>틀린 유형</th><th>걸린 시간</th></tr>' + j.recent.map(e =>
+      `<tr><td>${e.time}</td><td>${esc(e.name)}</td><td class="wrap">${esc(e.range)}</td><td><b>${e.score}점</b></td><td>${e.correct}/${e.total}</td><td class="wrap">${esc(e.wrong || '-')}</td><td>${esc(e.dur || '-')}</td></tr>`).join('') : '';
+  } catch (e) { msg.textContent = '시트 요약을 받지 못했습니다. 통신 상태를 확인하거나, 시트의 Apps Script가 2026-09-23 이후 버전인지 확인한 뒤 「새로고침」을 누르세요.'; }
+}
+$('#tReload').onclick = loadTeacher;
+
 $('#tBack').onclick = renderHome;
 $('#filter').oninput = renderTeacher;
 $('#home2').onclick = () => {
